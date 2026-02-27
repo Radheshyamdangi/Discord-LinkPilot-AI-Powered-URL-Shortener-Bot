@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>URL Dashboard</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #4b5563;
+      --accent: #0f766e;
+      --accent-strong: #115e59;
+      --danger: #b91c1c;
+      --border: #d1d5db;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 100% 0%, #dbeafe 0%, transparent 40%),
+        radial-gradient(circle at 0% 100%, #ccfbf1 0%, transparent 35%),
+        var(--bg);
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+      overflow: hidden;
+    }
+
+    .header {
+      padding: 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.35rem;
+    }
+
+    .summary {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .btn-refresh {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-refresh:hover {
+      background: var(--accent-strong);
+    }
+
+    .btn-delete {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 860px;
+    }
+
+    th,
+    td {
+      padding: 12px 10px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+      font-size: 0.94rem;
+    }
+
+    th {
+      background: #f9fafb;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+
+    .mono {
+      font-family: Consolas, "Courier New", monospace;
+    }
+
+    .link {
+      color: #1d4ed8;
+      word-break: break-word;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .status {
+      padding: 12px 18px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    @media (max-width: 700px) {
+      .container {
+        margin: 12px auto;
+      }
+
+      h1 {
+        font-size: 1.1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="header">
+        <div>
+          <h1>Discord URL Shortener Dashboard</h1>
+          <div id="summary" class="summary">Loading...</div>
+        </div>
+        <button id="refreshBtn" class="btn btn-refresh">Refresh</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Short ID</th>
+              <th>Short URL</th>
+              <th>Original URL</th>
+              <th>Created By</th>
+              <th>User ID</th>
+              <th>Created At</th>
+              <th>Total Visits</th>
+              <th>Delete</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+
+      <div id="status" class="status">Ready.</div>
+    </div>
+  </div>
+
+  <script>
+    const summaryEl = document.getElementById("summary");
+    const statusEl = document.getElementById("status");
+    const tableBody = document.getElementById("tableBody");
+    const refreshBtn = document.getElementById("refreshBtn");
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function formatDate(value) {
+      if (!value) return "-";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "-";
+      return date.toLocaleString();
+    }
+
+    function rowHtml(item) {
+      const shortUrl = `${window.location.origin}/${item.shortId}`;
+
+      return `
+        <tr>
+          <td class="mono">${escapeHtml(item.shortId)}</td>
+          <td><a class="link" href="${escapeHtml(shortUrl)}" target="_blank" rel="noreferrer">${escapeHtml(shortUrl)}</a></td>
+          <td><a class="link" href="${escapeHtml(item.redirectURL)}" target="_blank" rel="noreferrer">${escapeHtml(item.redirectURL)}</a></td>
+          <td>${escapeHtml(item.createdByUsername || "unknown")}</td>
+          <td class="mono">${escapeHtml(item.createdByUserId || "unknown")}</td>
+          <td>${escapeHtml(formatDate(item.createdAt))}</td>
+          <td>${escapeHtml(item.totalVisits)}</td>
+          <td><button class="btn btn-delete" data-shortid="${escapeHtml(item.shortId)}">Delete</button></td>
+        </tr>
+      `;
+    }
+
+    async function loadUrls() {
+      statusEl.textContent = "Loading URLs...";
+
+      try {
+        const response = await fetch("/api/urls");
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload.error || "Failed to load URLs");
+        }
+
+        const rows = payload.data || [];
+        summaryEl.textContent = `Total URLs: ${payload.total || 0}`;
+
+        if (!rows.length) {
+          tableBody.innerHTML = `
+            <tr>
+              <td colspan="8" class="muted">No URL records found.</td>
+            </tr>
+          `;
+        } else {
+          tableBody.innerHTML = rows.map(rowHtml).join("");
+        }
+
+        statusEl.textContent = "Loaded successfully.";
+      } catch (error) {
+        statusEl.textContent = `Error: ${error.message}`;
+      }
+    }
+
+    async function deleteUrl(shortId) {
+      const yes = confirm(`Delete short URL ${shortId}?`);
+      if (!yes) return;
+
+      statusEl.textContent = `Deleting ${shortId}...`;
+
+      try {
+        const response = await fetch(`/api/urls/${encodeURIComponent(shortId)}`, {
+          method: "DELETE"
+        });
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload.error || "Delete failed");
+        }
+
+        statusEl.textContent = `Deleted ${shortId}`;
+        await loadUrls();
+      } catch (error) {
+        statusEl.textContent = `Delete failed: ${error.message}`;
+      }
+    }
+
+    tableBody.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-shortid]");
+      if (!button) return;
+
+      const shortId = button.getAttribute("data-shortid");
+      if (!shortId) return;
+
+      deleteUrl(shortId);
+    });
+
+    refreshBtn.addEventListener("click", loadUrls);
+    loadUrls();
+  </script>
+</body>
+</html>
