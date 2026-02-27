@@ -149,6 +149,4 @@ AI_MAX_REPLY_CHUNKS=8
 - Built resilience features (single-instance lock, de-duplication window, fallback AI models).
 - Added practical Discord constraints handling (message chunking/truncation).
 
-## License
-
-ISC
+Developed by 🔥Radheshyam
